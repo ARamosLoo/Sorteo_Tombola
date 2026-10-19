@@ -1,24 +1,26 @@
-# 🎯 Gran Sorteo Institucional - INEI
-### Sistema Dinámico de Sorteos, Tómbola 3D y Ruleta de Ganadores
+# Gran Sorteo Institucional - INEI
+### Sistema de sorteos con tómbola virtual
 
-Aplicación de escritorio interactiva, moderna y con estética institucional basada en la identidad visual del **Instituto Nacional de Estadística e Informática (INEI)** (azul institucional `#1363D0`, azul marino profundo `#041126`, acentos cian neón `#00D2FF` y dorado `#FFD700`).
+Aplicación de escritorio con la identidad visual del **Instituto Nacional de Estadística e Informática (INEI)**: azul marino y azul del logo institucional.
+
+© 2026 Alexander Loo - INEI. Todos los derechos reservados.
 
 ---
 
-## 🚀 ¿Cómo Iniciar la Aplicación?
+## Instalación para usuarios (sin código)
 
-Tienes dos formas sencillas de ejecutarla en Windows:
+1. Descarga **`Instalador-Sorteo-INEI-x.y.z.exe`** desde la sección **Releases** del repositorio.
+2. Ejecútalo y sigue el asistente. Se crea un acceso directo en el escritorio.
+3. Abre **Gran Sorteo INEI**. No requiere instalar nada más.
 
-### Opción 1: Modo Escritorio Nativo (Electron) - *Recomendado*
-Haz doble clic sobre el archivo:
-📁 **`INICIAR_APP_ESCRITORIO.bat`**
-*(O abre una terminal en esta carpeta y ejecuta `npm start`)*.  
-Se abrirá como una aplicación de escritorio nativa independiente.
+## Generar el instalador (para quien mantiene el proyecto)
 
-### Opción 2: Modo Directo Instantáneo (Sin dependencias)
-Haz doble clic sobre el archivo:
-📁 **`INICIAR_SORTEO_DIRECTO.bat`**  
-Se iniciará al instante en ventana de aplicación dedicada de Microsoft Edge/Chrome, sin barra de direcciones ni pestañas. También puedes hacer doble clic directamente en `index.html`.
+- **En la nube (sin instalar nada):** en GitHub, pestaña *Actions* > *Construir instalador* > *Run workflow*. El `.exe` queda como artefacto. Si se sube un tag `v1.0.0`, se publica además en *Releases*.
+- **En local:** con Node.js instalado, ejecuta `CONSTRUIR_INSTALADOR.bat`. El instalador queda en la carpeta `dist`.
+
+## Uso en desarrollo
+
+- `npm install` y luego `npm start` (modo escritorio), o `INICIAR_SORTEO_DIRECTO.bat` (abre `index.html` en Edge/Chrome).
 
 ---
 

@@ -1309,3 +1309,14 @@ body::before {
   padding: 10px 14px; border-radius: 10px; font-size: 0.82rem; color: #FFB4A8;
   background: rgba(227, 6, 19, 0.12); border: 1px solid rgba(227, 6, 19, 0.4);
 }
+
+/* Pie de página: derechos reservados */
+.app-footer {
+  margin-top: 8px;
+  padding: 14px 20px 18px;
+  text-align: center;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  border-top: 1px solid rgba(46, 155, 230, 0.2);
+}

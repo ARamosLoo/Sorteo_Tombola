@@ -10,7 +10,8 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: 'Gran Sorteo Institucional - INEI',
-    backgroundColor: '#041126',
+    icon: path.join(__dirname, 'assets', 'logo-inei.png'),
+    backgroundColor: '#101733',
     autoHideMenuBar: true,
     show: false, // show after ready-to-show to prevent white flash
     webPreferences: {
