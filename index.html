@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gran Sorteo Institucional - INEI</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231363D0'/><text x='50' y='65' font-size='38' font-weight='bold' fill='white' text-anchor='middle'>INEI</text></svg>">
+</head>
+<body>
+
+  <!-- Fullscreen Celebration FX Canvas -->
+  <canvas id="celebration-canvas"></canvas>
+
+  <div class="app-container">
+    <!-- Top Institutional Header -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="inei-logo-badge">
+          <div class="logo-graphic" title="INEI - Perú">
+            <!-- Modern SVG INEI Emblem -->
+            <svg width="34" height="34" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="24" width="6" height="12" rx="2" fill="#FFFFFF"/>
+              <rect x="14" y="16" width="6" height="20" rx="2" fill="#FFFFFF"/>
+              <rect x="24" y="8" width="6" height="28" rx="2" fill="#FFD700"/>
+              <path d="M4 18L17 10L27 14L36 4" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="36" cy="4" r="3" fill="#E30613"/>
+            </svg>
+          </div>
+          <div>
+            <div class="inei-text-title">INEI</div>
+            <div class="inei-subtitle">Instituto Nacional de Estadística e Informática</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Participant Stats -->
+      <div class="header-stats">
+        <div class="stat-chip" title="Total de participantes cargados en el sistema">
+          <span>Participantes:</span>
+          <span class="val" id="stat-total-count">0</span>
+        </div>
+        <div class="stat-chip" title="Participantes aptos que aún no han ganado">
+          <span>Habilitados:</span>
+          <span class="val" id="stat-eligible-count">0</span>
+        </div>
+        <div class="stat-chip" title="Ganadores proclamados en los 3 sorteos">
+          <span>Ganadores:</span>
+          <span class="val" id="stat-winners-count">0 / 3</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="header-actions">
+        <button id="btn-open-data-modal" class="btn-header primary" title="Cargar participantes desde Excel">
+          <span>📋</span> Cargar Participantes
+        </button>
+        <button id="btn-sound-toggle" class="btn-header" title="Activar/Silenciar sonido de efectos">
+          <span>🔊</span> <span class="label">Sonido: ON</span>
+        </button>
+        <button id="btn-fullscreen" class="btn-header" title="Modo Pantalla Completa (F11)">
+          <span>⛶</span> Pantalla Completa
+        </button>
+        <button id="btn-export-results" class="btn-header" title="Exportar reporte de ganadores y tickets a Excel/CSV">
+          <span>📥</span> Exportar
+        </button>
+        <button id="btn-reset-all" class="btn-header" title="Reiniciar los 3 sorteos">
+          <span>🔄</span> Reiniciar
+        </button>
+      </div>
+    </header>
+
+    <!-- Sorteo Round Navigation & Prize Config -->
+    <nav class="round-nav-bar">
+      <div class="round-pills-container">
+        <button class="sorteo-pill active" data-round="1">
+          <span>🎯</span> Sorteo 1
+        </button>
+        <button class="sorteo-pill" data-round="2">
+          <span>🎯</span> Sorteo 2
+        </button>
+        <button class="sorteo-pill" data-round="3">
+          <span>🎯</span> Sorteo 3
+        </button>
+      </div>
+
+      <div class="round-prize-edit">
+        <label for="active-prize-input">Premio en disputa:</label>
+        <input type="text" id="active-prize-input" class="prize-input" value="1° Premio Institucional" placeholder="Escribe el nombre del premio..." title="Puedes personalizar el nombre del premio para este sorteo">
+      </div>
+    </nav>
+
+    <!-- Central Stage: 3D Tombola Drum + Suspense Slot Display -->
+    <main class="main-stage">
+      <!-- 3D Interactive Tombola Drum -->
+      <section class="tombola-panel">
+        <canvas id="tombola-canvas"></canvas>
+        <div class="tombola-caption">
+          <span>⚙️</span> Tómbola Virtual de Esferas Numeradas
+        </div>
+      </section>
+
+      <!-- Digital Mega Display & Controls -->
+      <section class="display-panel">
+        <div class="display-card">
+          <div class="display-header">
+            <h2 class="stage-title" id="active-sorteo-title">SORTEO N° 1</h2>
+            <span class="status-tag status-ready" id="slot-status">LISTO PARA SORTEAR</span>
+          </div>
+
+          <!-- Odometer / Ticket Display -->
+          <div class="slot-screen">
+            <span class="slot-label">NÚMERO DE TICKET GANADOR</span>
+            <div class="slot-ticket-number" id="slot-ticket">--- ---</div>
+            <div class="slot-divider"></div>
+            <div class="slot-participant-name" id="slot-name">Presiona "INICIAR SORTEO" para comenzar</div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="stage-actions">
+            <button id="btn-start-draw" class="btn-draw-main btn-start">
+              <span class="icon">🎲</span> ¡INICIAR SORTEO N° 1!
+            </button>
+            <button id="btn-stop-draw" class="btn-draw-main btn-stop hidden">
+              <span class="icon">🛑</span> ¡DETENER Y PROCLAMAR GANADOR!
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Winners Podium Cards -->
+    <footer class="podium-section">
+      <div class="podium-header">
+        <div class="podium-title">
+          <span>🏆</span> PODIO DE GANADORES INSTITUCIONALES
+        </div>
+        <div class="rule-note">
+          ✓ Regla: Cada sorteo tiene un único ganador exclusivo que no participa en los demás sorteos.
+        </div>
+      </div>
+
+      <div class="podium-grid">
+        <!-- Sorteo 1 Card -->
+        <div class="podium-card" id="podium-card-1" data-round="1">
+          <div class="podium-card-top">
+            <div class="podium-round-badge"><span>🥇</span> 1° Sorteo</div>
+            <span class="podium-status active">EN CURSO</span>
+          </div>
+          <div class="podium-prize">1° Premio Institucional</div>
+          <div class="podium-ticket-box">
+            <div class="podium-ticket">Pendiente</div>
+          </div>
+          <div class="podium-name">En espera de sorteo</div>
+          <div class="podium-actions">
+            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
+              <span>📜</span> Diploma
+            </button>
+            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
+              <span>✕</span> Repetir
+            </button>
+          </div>
+        </div>
+
+        <!-- Sorteo 2 Card -->
+        <div class="podium-card" id="podium-card-2" data-round="2">
+          <div class="podium-card-top">
+            <div class="podium-round-badge"><span>🥈</span> 2° Sorteo</div>
+            <span class="podium-status pending">PENDIENTE</span>
+          </div>
+          <div class="podium-prize">2° Premio Institucional</div>
+          <div class="podium-ticket-box">
+            <div class="podium-ticket">Pendiente</div>
+          </div>
+          <div class="podium-name">En espera de sorteo</div>
+          <div class="podium-actions">
+            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
+              <span>📜</span> Diploma
+            </button>
+            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
+              <span>✕</span> Repetir
+            </button>
+          </div>
+        </div>
+
+        <!-- Sorteo 3 Card -->
+        <div class="podium-card" id="podium-card-3" data-round="3">
+          <div class="podium-card-top">
+            <div class="podium-round-badge"><span>🥉</span> 3° Sorteo</div>
+            <span class="podium-status pending">PENDIENTE</span>
+          </div>
+          <div class="podium-prize">3° Premio Institucional</div>
+          <div class="podium-ticket-box">
+            <div class="podium-ticket">Pendiente</div>
+          </div>
+          <div class="podium-name">En espera de sorteo</div>
+          <div class="podium-actions">
+            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
+              <span>📜</span> Diploma
+            </button>
+            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
+              <span>✕</span> Repetir
+            </button>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Excel Import Modal -->
+  <div class="modal-overlay" id="data-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title"><span>📋</span> Carga de Participantes desde Excel</h3>
+        <button class="btn-modal-close" id="btn-close-data-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="instructions-box">
+          <strong>¿Cómo cargar los datos?</strong><br>
+          Copia las 2 columnas desde tu Excel (<strong>Columna 1: Número de Ticket</strong> y <strong>Columna 2: Nombre de la Persona</strong>) y pégalas directamente en el cuadro abajo con <strong>Ctrl + V</strong>.
+          El sistema detecta y omite automáticamente encabezados como "Ticket" o "Nombre", y elimina tickets duplicados.
+        </div>
+
+        <div class="paste-container">
+          <textarea id="paste-textarea" class="paste-textarea" placeholder="Ejemplo:
+T-1001&#9;Carlos Mendoza Quispe
+T-1002&#9;Rosa Huamán Castillo
+T-1003&#9;Jorge Sánchez Vega"></textarea>
+        </div>
+
+        <div id="paste-feedback" class="feedback-box hidden"></div>
+
+        <div class="modal-actions-bar">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button id="btn-process-paste" class="btn-header primary">
+              <span>💾</span> Procesar y Guardar
+            </button>
+            <button id="btn-load-demo" class="btn-header" title="Cargar 60 colaboradores INEI de prueba">
+              <span>⚡</span> Cargar Demostración INEI
+            </button>
+            <button id="btn-upload-excel" class="btn-header" title="Importar archivo .xlsx o .csv">
+              <span>📁</span> Subir Archivo Excel
+            </button>
+            <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
+          </div>
+          <button id="btn-clear-data" class="btn-header" style="color:#FF8A80; border-color: rgba(227,6,19,0.4);">
+            <span>🗑️</span> Borrar Todo
+          </button>
+        </div>
+
+        <!-- Live Preview Table -->
+        <div class="preview-section">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong style="font-size:0.9rem; color: #FFFFFF;">Vista Previa de Participantes:</strong>
+            <span id="preview-count" style="font-size:0.8rem; color: var(--inei-cyan-glow);">0 registros</span>
+          </div>
+          <div class="preview-table-container">
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th style="width: 25%;">N° Ticket</th>
+                  <th style="width: 55%;">Persona / Colaborador</th>
+                  <th style="width: 20%;">Estado</th>
+                </tr>
+              </thead>
+              <tbody id="preview-table-body">
+                <tr>
+                  <td colspan="3" style="text-align:center; padding: 20px; color: #88a0c0;">
+                    No hay participantes cargados aún.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grand Celebration Modal (Winner Proclamation) -->
+  <div class="modal-overlay" id="celebration-modal">
+    <div class="celebration-modal-box">
+      <div class="celeb-trophy-icon">🏆</div>
+      <div class="celeb-badge" id="celeb-round-badge">¡GANADOR DEL 1° SORTEO INSTITUCIONAL!</div>
+
+      <div class="celeb-ticket-card">
+        <span style="font-size:0.85rem; color:var(--text-secondary); letter-spacing:2px; text-transform:uppercase;">NÚMERO DE TICKET PREMIADO</span>
+        <div class="celeb-ticket-num" id="celeb-ticket">T-00000</div>
+        <div class="celeb-winner-name" id="celeb-name">NOMBRE DEL PARTICIPANTE</div>
+      </div>
+
+      <div class="celeb-prize-name" id="celeb-prize">Premio: 1° Premio Institucional</div>
+
+      <div class="celeb-buttons">
+        <button id="btn-download-cert" class="btn-header primary" style="padding:12px 22px; font-size:1rem;">
+          <span>📜</span> Descargar Diploma Oficial (PNG)
+        </button>
+        <button id="btn-next-draw" class="btn-header" style="background:#FFD700; color:#041126; font-weight:800; padding:12px 22px; font-size:1rem;">
+          <span>➡️</span> Siguiente Sorteo
+        </button>
+        <button id="btn-close-celeb" class="btn-header" style="padding:12px 18px;">
+          <span>✕</span> Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/tombola.js"></script>
+  <script src="js/slot-display.js"></script>
+  <script src="js/celebration.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

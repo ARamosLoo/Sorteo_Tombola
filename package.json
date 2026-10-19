@@ -1,0 +1,20 @@
+{
+  "name": "ruleta",
+  "version": "1.0.0",
+  "description": "Aplicación Desktop Dinámica de Sorteo y Ruleta - INEI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "desktop": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^44.9.0"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}
