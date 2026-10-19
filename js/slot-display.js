@@ -12,9 +12,9 @@ class SlotDisplay {
 
   setIdleDisplay() {
     this.ticketEl.textContent = '--- ---';
-    this.ticketEl.classList.remove('locking-in', 'winner-locked');
+    this.ticketEl.classList.remove('locking-in', 'winner-locked', 'loser-locked');
     this.nameEl.textContent = 'Presiona "INICIAR SORTEO" para comenzar';
-    this.nameEl.classList.remove('winner-name');
+    this.nameEl.classList.remove('winner-name', 'loser-name');
     if (this.statusEl) {
       this.statusEl.textContent = 'LISTO PARA SORTEAR';
       this.statusEl.className = 'status-tag status-ready';
@@ -29,9 +29,9 @@ class SlotDisplay {
   startSpin(eligibleParticipants) {
     if (!eligibleParticipants || eligibleParticipants.length === 0) return;
     this.isSpinning = true;
-    this.ticketEl.classList.remove('winner-locked');
+    this.ticketEl.classList.remove('winner-locked', 'loser-locked');
     this.ticketEl.classList.add('locking-in');
-    this.nameEl.classList.remove('winner-name');
+    this.nameEl.classList.remove('winner-name', 'loser-name');
 
     if (this.statusEl) {
       this.statusEl.textContent = 'MEZCLANDO Y SORTEANDO...';
@@ -58,12 +58,12 @@ class SlotDisplay {
     spinStep();
   }
 
-  decelerateAndLock(eligibleParticipants, winner, onComplete) {
+  decelerateAndLock(eligibleParticipants, winner, onComplete, isWinner = true) {
     this.isSpinning = false;
     clearTimeout(this.timer);
 
     if (this.statusEl) {
-      this.statusEl.textContent = '¡SELECCIONANDO GANADOR!';
+      this.statusEl.textContent = isWinner ? '¡SELECCIONANDO GANADOR!' : 'EXTRAYENDO BOLA...';
       this.statusEl.className = 'status-tag status-suspense';
     }
 
@@ -90,7 +90,7 @@ class SlotDisplay {
         this.timer = setTimeout(nextStep, delay);
       } else {
         // LOCK IN FINAL WINNER
-        this.lockWinner(winner);
+        if (isWinner) this.lockWinner(winner); else this.lockLoser(winner);
         if (onComplete) onComplete(winner);
       }
     };
@@ -112,6 +112,25 @@ class SlotDisplay {
     if (this.statusEl) {
       this.statusEl.textContent = '¡TENEMOS UN GANADOR!';
       this.statusEl.className = 'status-tag status-winner';
+    }
+  }
+
+  // A ball that was extracted but does not win this round
+  lockLoser(participant) {
+    clearTimeout(this.timer);
+    this.isSpinning = false;
+
+    this.ticketEl.textContent = participant.ticket;
+    this.nameEl.textContent = participant.name;
+
+    this.ticketEl.classList.remove('locking-in', 'winner-locked');
+    this.ticketEl.classList.add('loser-locked');
+    this.nameEl.classList.remove('winner-name');
+    this.nameEl.classList.add('loser-name');
+
+    if (this.statusEl) {
+      this.statusEl.textContent = 'NO GANA ESTA VEZ';
+      this.statusEl.className = 'status-tag status-lose';
     }
   }
 

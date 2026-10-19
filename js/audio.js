@@ -257,6 +257,45 @@ class SoundEngine {
     } catch (e) {}
   }
 
+  // Descending "wah-wah" for a ball that does not win (same synth family as the fanfare)
+  playMissSound() {
+    if (this.isMuted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    try {
+      this.stopDrumroll();
+      const now = this.ctx.currentTime;
+      const notes = [
+        { freq: 392.0, time: 0.0, dur: 0.22 },  // G4
+        { freq: 349.23, time: 0.24, dur: 0.22 }, // F4
+        { freq: 311.13, time: 0.48, dur: 0.22 }, // Eb4
+        { freq: 233.08, time: 0.72, dur: 0.7 },  // Bb3, long falling tail
+      ];
+
+      notes.forEach((note, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = now + note.time;
+        const end = start + note.dur;
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(note.freq, start);
+        // Last note slides down like a deflating balloon
+        osc.frequency.exponentialRampToValueAtTime(i === notes.length - 1 ? note.freq * 0.6 : note.freq * 0.94, end);
+
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(0.18, start + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, end);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(end + 0.02);
+      });
+    } catch (e) {}
+  }
+
   // Pop sound for confetti explosions
   playPop() {
     if (this.isMuted || !this.ctx) return;

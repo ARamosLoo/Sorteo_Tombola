@@ -18,18 +18,20 @@ class TombolaEngine {
     this.rotationAngle = 0;
     this.rotationSpeed = 0.008;
     this.mixingSpeed = 0.08;
-    this.targetRotationSpeed = 0.008;
+    this.targetRotationSpeed = 0.02;
 
     this.activeWinningBall = null;
+    this.retiring = null;
+    this.particles = [];
     this.animationFrameId = null;
 
     this.ballColors = [
-      { bg: '#1363D0', text: '#FFFFFF', name: 'blue' },   // INEI Royal Blue
-      { bg: '#0A2B68', text: '#FFFFFF', name: 'darkblue' }, // INEI Navy
-      { bg: '#00D2FF', text: '#0A2B68', name: 'cyan' },   // INEI Cyan
-      { bg: '#F5B027', text: '#000000', name: 'gold' },   // Gold
-      { bg: '#FFFFFF', text: '#1363D0', name: 'white' },  // White
-      { bg: '#E30613', text: '#FFFFFF', name: 'red' },    // Peru Accent
+      { bg: '#1E8BD6', text: '#FFFFFF', name: 'blue' },   // INEI Royal Blue
+      { bg: '#263266', text: '#FFFFFF', name: 'darkblue' }, // INEI Navy
+      { bg: '#2E9BE6', text: '#263266', name: 'cyan' },   // INEI Cyan
+      { bg: '#8CCBF2', text: '#000000', name: 'gold' },   // Gold
+      { bg: '#FFFFFF', text: '#1E8BD6', name: 'white' },  // White
+      { bg: '#5BB8F0', text: '#FFFFFF', name: 'red' },    // Peru Accent
     ];
 
     this.initCanvas();
@@ -52,13 +54,13 @@ class TombolaEngine {
 
   initBalls(sampleNumbers = []) {
     this.balls = [];
-    const count = Math.min(Math.max(this.ballCount, 30), 60);
+    const count = sampleNumbers.length > 0 ? Math.min(sampleNumbers.length, 60) : this.ballCount;
 
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.random() * (this.radius - 32);
       const colorObj = this.ballColors[i % this.ballColors.length];
-      const number = sampleNumbers[i] || (i + 1);
+      const number = sampleNumbers.length > 0 ? sampleNumbers[i] : (i + 1);
 
       this.balls.push({
         x: this.centerX + Math.cos(angle) * dist,
@@ -74,13 +76,35 @@ class TombolaEngine {
     }
   }
 
-  updateBallsWithParticipants(participants) {
+  // Rebuilds the drum with the participants that are still in play
+  updateBallsWithParticipants(participants, enter = false) {
+    this.activeWinningBall = null;
+    this.retiring = null;
+    this.particles = [];
+    if (this.state !== 'mixing') this.state = 'idle';
     if (!participants || participants.length === 0) {
       this.initBalls();
       return;
     }
     const numbers = participants.slice(0, 60).map(p => p.ticket);
     this.initBalls(numbers);
+    if (enter) this.dropBallsIn();
+  }
+
+  // Balls rejoining the drum fall in from the top while fading in
+  dropBallsIn() {
+    this.balls.forEach(b => {
+      b.x = this.centerX + (Math.random() - 0.5) * this.radius;
+      b.y = this.centerY - this.radius * 0.8 - Math.random() * 40;
+      b.vx = (Math.random() - 0.5) * 2;
+      b.vy = 0;
+      b.alpha = 0;
+    });
+  }
+
+  // Ticket numbers currently inside the drum
+  getTickets() {
+    return this.balls.map(b => b.number);
   }
 
   startMixing() {
@@ -98,27 +122,81 @@ class TombolaEngine {
     });
   }
 
-  stopMixing(winningTicket = null) {
+  // isWinner=false: the ball comes out to the center but is a non-winning extraction
+  stopMixing(winningTicket = null, isWinner = true) {
     this.state = 'stopping';
     this.targetRotationSpeed = 0.015;
 
     // Pick or prepare the winning ball to float to the center
     if (winningTicket) {
-      const ball = this.balls[0];
-      ball.number = String(winningTicket);
-      ball.color = { bg: '#FFD700', text: '#002B49', name: 'winner-gold' };
+      // Use the real ball of that ticket; only fall back to relabeling when it is beyond the 60 balls shown
+      let ball = this.balls.find(b => b.number === String(winningTicket));
+      if (!ball) {
+        ball = this.balls[0];
+        ball.number = String(winningTicket);
+      }
+      ball.color = { bg: '#CFEAFB', text: '#263266', name: 'winner-gold' };
+      ball.isLoser = !isWinner;
+      if (ball.isLoser) {
+        ball.color = { bg: '#8CCBF2', text: '#263266', name: 'loser' };
+      }
       this.activeWinningBall = ball;
     }
 
     setTimeout(() => {
       this.state = 'locked';
-      this.targetRotationSpeed = 0.004;
+      this.targetRotationSpeed = 0.012;
     }, 1800);
+  }
+
+  // Animates the winning ball leaving the drum for good, then removes it from the balls array
+  retireWinnerBall(onDone) {
+    const lose = Boolean(this.activeWinningBall && this.activeWinningBall.isLoser);
+    const ball = this.activeWinningBall;
+    if (!ball || this.retiring) {
+      if (onDone) onDone();
+      return;
+    }
+    this.retiring = { frame: 0, total: 90, startR: ball.r, onDone, burst: false, lose };
+    if (window.soundEngine && window.soundEngine.playBallBounce) window.soundEngine.playBallBounce();
+  }
+
+  hasWinnerBall() {
+    return Boolean(this.activeWinningBall);
+  }
+
+  updateRetiring() {
+    const r = this.retiring;
+    const ball = this.activeWinningBall;
+    if (!r || !ball) return;
+    r.frame++;
+    const p = r.frame / r.total;
+    // Pulse up slightly, then collapse to nothing
+    ball.alpha = p < 0.3 ? 1 : Math.max(0, 1 - (p - 0.3) / 0.7);
+    ball.r = p < 0.3 ? r.startR * (1 + p) : r.startR * 1.3 * Math.max(0, 1 - (p - 0.3) / 0.7);
+    ball.rot += 0.25;
+    if (r.lose) ball.y += 1.5 + p * 4; // a non-winning ball sinks as it fades
+    if (p >= 0.3 && !r.burst) {
+      r.burst = true;
+      for (let i = 0; i < 36; i++) {
+        const a = (Math.PI * 2 * i) / 36;
+        const s = 2 + Math.random() * 3.5;
+        this.particles.push({ x: ball.x, y: ball.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, lose: r.lose });
+      }
+    }
+    if (r.frame >= r.total) {
+      this.balls = this.balls.filter(b => b !== ball);
+      this.activeWinningBall = null;
+      this.retiring = null;
+      this.state = 'idle';
+      this.targetRotationSpeed = 0.02;
+      if (r.onDone) r.onDone();
+    }
   }
 
   reset() {
     this.state = 'idle';
-    this.targetRotationSpeed = 0.008;
+    this.targetRotationSpeed = 0.02;
     this.activeWinningBall = null;
   }
 
@@ -127,11 +205,14 @@ class TombolaEngine {
     this.rotationSpeed += (this.targetRotationSpeed - this.rotationSpeed) * 0.05;
     this.rotationAngle += this.rotationSpeed;
 
-    const gravity = this.state === 'mixing' ? 0.08 : 0.22;
-    const friction = this.state === 'mixing' ? 0.992 : 0.97;
-    const maxSpeed = this.state === 'mixing' ? 14 : 4;
+    // Resting drum (idle / winner on display) keeps turning gently so it never looks frozen
+    const tumbling = this.state === 'idle' || this.state === 'locked';
+    const gravity = this.state === 'mixing' ? 0.08 : (tumbling ? 0.12 : 0.22);
+    const friction = this.state === 'mixing' ? 0.992 : (tumbling ? 0.985 : 0.97);
+    const maxSpeed = this.state === 'mixing' ? 14 : (tumbling ? 3.2 : 4);
 
     this.balls.forEach((ball, idx) => {
+      if (ball.alpha !== undefined && ball.alpha < 1) ball.alpha = Math.min(1, ball.alpha + 0.03);
       // Swirling centrifugal force during mixing
       if (this.state === 'mixing') {
         const dx = ball.x - this.centerX;
@@ -152,6 +233,18 @@ class TombolaEngine {
         }
       } else {
         ball.vy += gravity;
+
+        // The turning wall drags balls up the side; each ball grips differently, then slips and falls back
+        if (tumbling && ball !== this.activeWinningBall) {
+          if (ball.grip === undefined || Math.random() < 0.004) ball.grip = 0.4 + Math.random() * 1.1;
+          const dx = ball.x - this.centerX;
+          const dy = ball.y - this.centerY;
+          const dist = Math.sqrt(dx * dx + dy * dy) + 1;
+          if (dist > this.radius - ball.r - 10) {
+            ball.vx += (-dy / dist) * 0.09 * ball.grip;
+            ball.vy += (dx / dist) * 0.09 * ball.grip;
+          }
+        }
       }
 
       ball.x += ball.vx;
@@ -189,8 +282,16 @@ class TombolaEngine {
       }
     });
 
+    this.separateBalls();
+
+    this.particles = this.particles.filter(p => {
+      p.x += p.vx; p.y += p.vy; p.vx *= 0.96; p.vy *= 0.96; p.life -= 0.03;
+      return p.life > 0;
+    });
+    this.updateRetiring();
+
     // Special animation if winning ball is extracted
-    if (this.activeWinningBall && (this.state === 'stopping' || this.state === 'locked')) {
+    if (this.activeWinningBall && !this.retiring && (this.state === 'stopping' || this.state === 'locked')) {
       const targetX = this.centerX;
       const targetY = this.centerY;
       this.activeWinningBall.x += (targetX - this.activeWinningBall.x) * 0.08;
@@ -199,6 +300,35 @@ class TombolaEngine {
       this.activeWinningBall.vy *= 0.8;
       if (this.activeWinningBall.r < 32) {
         this.activeWinningBall.r += 0.3; // Grow slightly to stand out
+      }
+    }
+  }
+
+  // Soft ball-to-ball collisions so balls do not stack on one spot
+  separateBalls() {
+    const balls = this.balls;
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      if (a === this.activeWinningBall) continue;
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        if (b === this.activeWinningBall) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const minDist = a.r + b.r;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= minDist * minDist || d2 === 0) continue;
+        const d = Math.sqrt(d2);
+        const push = (minDist - d) / 2;
+        const nx = dx / d;
+        const ny = dy / d;
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+        const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rel < 0) {
+          a.vx += nx * rel * 0.5; a.vy += ny * rel * 0.5;
+          b.vx -= nx * rel * 0.5; b.vy -= ny * rel * 0.5;
+        }
       }
     }
   }
@@ -218,9 +348,9 @@ class TombolaEngine {
       this.centerY,
       this.radius
     );
-    glassGrad.addColorStop(0, 'rgba(19, 99, 208, 0.12)');
-    glassGrad.addColorStop(0.7, 'rgba(10, 43, 104, 0.45)');
-    glassGrad.addColorStop(1, 'rgba(5, 20, 55, 0.85)');
+    glassGrad.addColorStop(0, 'rgba(30, 139, 214, 0.12)');
+    glassGrad.addColorStop(0.7, 'rgba(38, 50, 102, 0.45)');
+    glassGrad.addColorStop(1, 'rgba(20, 27, 64, 0.85)');
 
     this.ctx.save();
     this.ctx.beginPath();
@@ -250,19 +380,31 @@ class TombolaEngine {
         this.activeWinningBall.y,
         this.activeWinningBall.r * 2.2
       );
-      auraGrad.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
-      auraGrad.addColorStop(0.5, 'rgba(255, 170, 0, 0.3)');
-      auraGrad.addColorStop(1, 'rgba(255, 215, 0, 0)');
+      const lose = this.activeWinningBall.isLoser;
+      auraGrad.addColorStop(0, lose ? 'rgba(111, 123, 168, 0.7)' : 'rgba(207, 234, 251, 0.8)');
+      auraGrad.addColorStop(0.5, lose ? 'rgba(80, 92, 140, 0.3)' : 'rgba(255, 170, 0, 0.3)');
+      auraGrad.addColorStop(1, lose ? 'rgba(111, 123, 168, 0)' : 'rgba(207, 234, 251, 0)');
 
       this.ctx.save();
+      this.ctx.globalAlpha = this.activeWinningBall.alpha ?? 1;
       this.ctx.beginPath();
       this.ctx.arc(this.activeWinningBall.x, this.activeWinningBall.y, this.activeWinningBall.r * 2.2, 0, Math.PI * 2);
       this.ctx.fillStyle = auraGrad;
       this.ctx.fill();
+      this.drawBall(this.activeWinningBall, !this.activeWinningBall.isLoser);
       this.ctx.restore();
-
-      this.drawBall(this.activeWinningBall, true);
     }
+
+    // Sparkles from a ball leaving the drum
+    this.particles.forEach(p => {
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.max(0, p.life);
+      this.ctx.fillStyle = p.lose ? '#6F7BA8' : '#CFEAFB';
+      this.ctx.beginPath();
+      this.ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.restore();
+    });
 
     // 5. Draw Glass Outer Reflection & Rim
     this.drawGlassHighlights();
@@ -275,6 +417,7 @@ class TombolaEngine {
     const { x, y, r, color, number, rot } = ball;
 
     this.ctx.save();
+    if (ball !== this.activeWinningBall && ball.alpha !== undefined) this.ctx.globalAlpha = ball.alpha;
     this.ctx.translate(x, y);
 
     // Ball Drop Shadow inside glass
@@ -293,15 +436,15 @@ class TombolaEngine {
       r
     );
     if (isWinner) {
-      ballGrad.addColorStop(0, '#FFF59D');
-      ballGrad.addColorStop(0.3, '#FFD700');
-      ballGrad.addColorStop(0.85, '#D48806');
-      ballGrad.addColorStop(1, '#874D00');
+      ballGrad.addColorStop(0, '#E8F5FD');
+      ballGrad.addColorStop(0.3, '#CFEAFB');
+      ballGrad.addColorStop(0.85, '#3E9BDB');
+      ballGrad.addColorStop(1, '#263266');
     } else {
       ballGrad.addColorStop(0, '#FFFFFF');
       ballGrad.addColorStop(0.2, color.bg);
       ballGrad.addColorStop(0.85, color.bg);
-      ballGrad.addColorStop(1, '#051833');
+      ballGrad.addColorStop(1, '#141B40');
     }
 
     this.ctx.beginPath();
@@ -310,7 +453,7 @@ class TombolaEngine {
     this.ctx.fill();
 
     // Ball border
-    this.ctx.strokeStyle = isWinner ? '#FFE082' : 'rgba(255, 255, 255, 0.3)';
+    this.ctx.strokeStyle = isWinner ? '#BFE3FA' : 'rgba(255, 255, 255, 0.3)';
     this.ctx.lineWidth = isWinner ? 2.5 : 1;
     this.ctx.stroke();
 
@@ -326,7 +469,7 @@ class TombolaEngine {
     this.ctx.stroke();
 
     // Number text
-    this.ctx.fillStyle = isWinner ? '#0A2B68' : (color.name === 'gold' ? '#333' : '#0B3880');
+    this.ctx.fillStyle = isWinner ? '#263266' : (color.name === 'gold' ? '#333' : '#263266');
     this.ctx.font = `bold ${Math.round(r * 0.65)}px "Segoe UI", Roboto, Arial, sans-serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
@@ -343,7 +486,7 @@ class TombolaEngine {
     this.ctx.translate(this.centerX, this.centerY);
     this.ctx.rotate(this.rotationAngle);
 
-    this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.25)';
+    this.ctx.strokeStyle = 'rgba(46, 155, 230, 0.25)';
     this.ctx.lineWidth = 2;
 
     // 3 Rotating Longitudinal Ribs
@@ -356,7 +499,7 @@ class TombolaEngine {
     }
 
     // Horizontal equator ring
-    this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+    this.ctx.strokeStyle = 'rgba(207, 234, 251, 0.3)';
     this.ctx.lineWidth = 3;
     this.ctx.beginPath();
     this.ctx.ellipse(0, 0, this.radius, this.radius * 0.25, 0, 0, Math.PI * 2);
@@ -373,18 +516,18 @@ class TombolaEngine {
       this.centerX + this.radius,
       this.centerY + this.radius
     );
-    rimGrad.addColorStop(0, '#00D2FF');
-    rimGrad.addColorStop(0.3, '#1363D0');
+    rimGrad.addColorStop(0, '#2E9BE6');
+    rimGrad.addColorStop(0.3, '#1E8BD6');
     rimGrad.addColorStop(0.5, '#FFFFFF');
-    rimGrad.addColorStop(0.7, '#FFD700');
-    rimGrad.addColorStop(1, '#0A2B68');
+    rimGrad.addColorStop(0.7, '#CFEAFB');
+    rimGrad.addColorStop(1, '#263266');
 
     this.ctx.save();
     this.ctx.beginPath();
     this.ctx.arc(this.centerX, this.centerY, this.radius, 0, Math.PI * 2);
     this.ctx.lineWidth = 6;
     this.ctx.strokeStyle = rimGrad;
-    this.ctx.shadowColor = '#00D2FF';
+    this.ctx.shadowColor = '#2E9BE6';
     this.ctx.shadowBlur = 12;
     this.ctx.stroke();
 
@@ -412,7 +555,7 @@ class TombolaEngine {
       Math.PI * 0.45
     );
     this.ctx.lineWidth = 3.5;
-    this.ctx.strokeStyle = 'rgba(0, 210, 255, 0.35)';
+    this.ctx.strokeStyle = 'rgba(46, 155, 230, 0.35)';
     this.ctx.stroke();
 
     this.ctx.restore();
@@ -426,13 +569,13 @@ class TombolaEngine {
 
     // Left and Right Arms supporting the drum
     const armGrad = this.ctx.createLinearGradient(baseX - this.radius - 20, 0, baseX + this.radius + 20, 0);
-    armGrad.addColorStop(0, '#0A2B68');
-    armGrad.addColorStop(0.5, '#1363D0');
-    armGrad.addColorStop(1, '#0A2B68');
+    armGrad.addColorStop(0, '#263266');
+    armGrad.addColorStop(0.5, '#1E8BD6');
+    armGrad.addColorStop(1, '#263266');
 
     // Triangular / Curved support brackets
     this.ctx.fillStyle = armGrad;
-    this.ctx.strokeStyle = '#00D2FF';
+    this.ctx.strokeStyle = '#2E9BE6';
     this.ctx.lineWidth = 2;
 
     // Left pivot
@@ -459,20 +602,20 @@ class TombolaEngine {
 
     // Base platform
     const platformGrad = this.ctx.createLinearGradient(0, this.height - 24, 0, this.height);
-    platformGrad.addColorStop(0, '#1363D0');
-    platformGrad.addColorStop(0.5, '#0A2B68');
-    platformGrad.addColorStop(1, '#031024');
+    platformGrad.addColorStop(0, '#1E8BD6');
+    platformGrad.addColorStop(0.5, '#263266');
+    platformGrad.addColorStop(1, '#0E1436');
 
     this.ctx.fillStyle = platformGrad;
     this.ctx.beginPath();
     this.ctx.roundRect(this.centerX - 120, this.height - 24, 240, 20, [8, 8, 4, 4]);
     this.ctx.fill();
-    this.ctx.strokeStyle = '#00D2FF';
+    this.ctx.strokeStyle = '#2E9BE6';
     this.ctx.lineWidth = 1.5;
     this.ctx.stroke();
 
     // Golden INEI Plate on base
-    this.ctx.fillStyle = '#FFD700';
+    this.ctx.fillStyle = '#CFEAFB';
     this.ctx.fillRect(this.centerX - 40, this.height - 16, 80, 5);
 
     this.ctx.restore();
@@ -484,7 +627,7 @@ class TombolaEngine {
     this.ctx.beginPath();
     this.ctx.arc(this.centerX - this.radius - 5, this.centerY, 10, 0, Math.PI * 2);
     this.ctx.arc(this.centerX + this.radius + 5, this.centerY, 10, 0, Math.PI * 2);
-    this.ctx.fillStyle = '#FFD700';
+    this.ctx.fillStyle = '#CFEAFB';
     this.ctx.fill();
     this.ctx.strokeStyle = '#FFFFFF';
     this.ctx.lineWidth = 2;

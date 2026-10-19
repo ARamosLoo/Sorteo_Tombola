@@ -5,19 +5,47 @@
 class RaffleState {
   constructor() {
     this.STORAGE_KEY = 'inei_sorteo_state_v1';
+    this.MAX_ROUNDS = 10;
+    this.MAX_PICK = 10;
     this.participants = [];
-    this.winners = {
-      1: null,
-      2: null,
-      3: null,
-    };
-    this.prizes = {
-      1: '1° Premio Institucional',
-      2: '2° Premio Institucional',
-      3: '3° Premio Institucional',
-    };
+    // Configurable: how many sorteos are held and which extraction of each sorteo wins
+    this.config = { totalRounds: 3, winnerPick: 3 };
+    this.winners = this.emptyWinners();
+    this.prizes = this.defaultPrizes();
     this.activeRound = 1;
+    // Non-winning balls per round (every extraction before the winning one). They re-enter the next round.
+    this.losers = this.emptyLosers();
     this.loadFromStorage();
+  }
+
+  get TOTAL_ROUNDS() {
+    return this.config.totalRounds;
+  }
+
+  get PICKS_PER_ROUND() {
+    return this.config.winnerPick;
+  }
+
+  rounds() {
+    return Array.from({ length: this.config.totalRounds }, (_, i) => i + 1);
+  }
+
+  emptyWinners() {
+    const o = {};
+    for (let r = 1; r <= this.MAX_ROUNDS; r++) o[r] = null;
+    return o;
+  }
+
+  emptyLosers() {
+    const o = {};
+    for (let r = 1; r <= this.MAX_ROUNDS; r++) o[r] = [];
+    return o;
+  }
+
+  defaultPrizes() {
+    const o = {};
+    for (let r = 1; r <= this.MAX_ROUNDS; r++) o[r] = `${r}° Premio Institucional`;
+    return o;
   }
 
   loadFromStorage() {
@@ -26,13 +54,11 @@ class RaffleState {
       if (data) {
         const parsed = JSON.parse(data);
         this.participants = parsed.participants || [];
-        this.winners = parsed.winners || { 1: null, 2: null, 3: null };
-        this.prizes = parsed.prizes || {
-          1: '1° Premio Institucional',
-          2: '2° Premio Institucional',
-          3: '3° Premio Institucional',
-        };
-        this.activeRound = parsed.activeRound || 1;
+        this.config = Object.assign(this.config, parsed.config || {});
+        this.winners = Object.assign(this.emptyWinners(), parsed.winners || {});
+        this.prizes = Object.assign(this.defaultPrizes(), parsed.prizes || {});
+        this.losers = Object.assign(this.emptyLosers(), parsed.losers || {});
+        this.activeRound = Math.min(parsed.activeRound || 1, this.config.totalRounds);
       }
     } catch (e) {
       console.warn('Error loading state from localStorage:', e);
@@ -48,6 +74,8 @@ class RaffleState {
           winners: this.winners,
           prizes: this.prizes,
           activeRound: this.activeRound,
+          losers: this.losers,
+          config: this.config,
         })
       );
     } catch (e) {
@@ -55,16 +83,55 @@ class RaffleState {
     }
   }
 
+  // True when any extraction or winner has already been recorded
+  hasProgress() {
+    return this.rounds().some(r => this.winners[r] || (this.losers[r] || []).length > 0);
+  }
+
+  // Changes the number of sorteos and which extraction wins. Existing progress is cleared.
+  setConfig(totalRounds, winnerPick) {
+    const clamp = (v, max) => Math.max(1, Math.min(max, parseInt(v, 10) || 1));
+    this.config = {
+      totalRounds: clamp(totalRounds, this.MAX_ROUNDS),
+      winnerPick: clamp(winnerPick, this.MAX_PICK),
+    };
+    this.winners = this.emptyWinners();
+    this.losers = this.emptyLosers();
+    this.activeRound = 1;
+    this.saveToStorage();
+  }
+
   // Returns all participants eligible for the current or next draw
-  // (Excludes anyone who has already won in ANY of the 3 draws!)
+  // (Excludes anyone who has already won in ANY of the draws!)
   getEligibleParticipants() {
-    const wonTickets = Object.values(this.winners)
-      .filter(w => w !== null)
+    const wonTickets = this.rounds()
+      .map(r => this.winners[r])
+      .filter(w => w)
       .map(w => String(w.ticket).trim().toLowerCase());
 
     return this.participants.filter(
       p => !wonTickets.includes(String(p.ticket).trim().toLowerCase())
     );
+  }
+
+  // Participants whose balls are inside the drum for the given round:
+  // everyone who has not won, minus the balls already extracted (and lost) in this round
+  getDrawPool(round = this.activeRound) {
+    const out = (this.losers[round] || []).map(l => String(l.ticket).trim().toLowerCase());
+    return this.getEligibleParticipants().filter(
+      p => !out.includes(String(p.ticket).trim().toLowerCase())
+    );
+  }
+
+  // 1 = first extraction of the round; the winning one is PICKS_PER_ROUND
+  getPickNumber(round = this.activeRound) {
+    return (this.losers[round] || []).length + 1;
+  }
+
+  addLoser(round, participant) {
+    if (!this.losers[round]) this.losers[round] = [];
+    this.losers[round].push({ ticket: participant.ticket, name: participant.name });
+    this.saveToStorage();
   }
 
   // Set winner for the given round
@@ -83,12 +150,14 @@ class RaffleState {
   // Reset a specific round's winner
   resetRoundWinner(round) {
     this.winners[round] = null;
+    this.losers[round] = [];
     this.saveToStorage();
   }
 
   // Full reset with all winners cleared
   resetAllWinners() {
-    this.winners = { 1: null, 2: null, 3: null };
+    this.winners = this.emptyWinners();
+    this.losers = this.emptyLosers();
     this.activeRound = 1;
     this.saveToStorage();
   }
@@ -96,14 +165,15 @@ class RaffleState {
   // Clear all participants and winners
   clearAll() {
     this.participants = [];
-    this.winners = { 1: null, 2: null, 3: null };
+    this.winners = this.emptyWinners();
+    this.losers = this.emptyLosers();
     this.activeRound = 1;
     this.saveToStorage();
   }
 
-  // Check if all 3 draws have winners
+  // Check if all draws have winners
   areAllRoundsComplete() {
-    return Boolean(this.winners[1] && this.winners[2] && this.winners[3]);
+    return this.rounds().every(r => this.winners[r]);
   }
 
   /**
@@ -284,13 +354,19 @@ class RaffleState {
     let csv = '\uFEFF'; // UTF-8 BOM
     csv += 'TIPO,SORTEO,NUMERO_TICKET,PERSONA,FECHA_SORTEO\r\n';
 
-    [1, 2, 3].forEach(round => {
+    this.rounds().forEach(round => {
       const winner = this.winners[round];
       if (winner) {
         csv += `GANADOR,Sorteo ${round},"${winner.ticket}","${winner.name}","${new Date(winner.wonAt).toLocaleString('es-PE')}"\r\n`;
       } else {
         csv += `PENDIENTE,Sorteo ${round},---,---,---\r\n`;
       }
+    });
+
+    this.rounds().forEach(round => {
+      (this.losers[round] || []).forEach((l, i) => {
+        csv += `DESCARTADO,Sorteo ${round} - Extracción ${i + 1},"${l.ticket}","${l.name}",---\r\n`;
+      });
     });
 
     csv += '\r\nLISTA COMPLETA DE PARTICIPANTES CARGADOS\r\n';

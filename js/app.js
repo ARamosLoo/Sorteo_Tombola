@@ -32,16 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const statWinners = document.getElementById('stat-winners-count');
 
   // Sorteo Tabs / Cards
-  const sorteoPills = document.querySelectorAll('.sorteo-pill');
+  const roundPillsEl = document.getElementById('round-pills');
+  const podiumGrid = document.getElementById('podium-grid');
+  let sorteoPills = [];
   const activeSorteoTitle = document.getElementById('active-sorteo-title');
   const activePrizeInput = document.getElementById('active-prize-input');
 
   // Podium Winner Cards
-  const podiumCards = {
-    1: document.getElementById('podium-card-1'),
-    2: document.getElementById('podium-card-2'),
-    3: document.getElementById('podium-card-3'),
-  };
+  let podiumCards = {};
 
   // Celebration Modal Elements
   const celebrationModal = document.getElementById('celebration-modal');
@@ -59,15 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportResults = document.getElementById('btn-export-results');
   const btnResetAll = document.getElementById('btn-reset-all');
 
+  const pickTracker = document.getElementById('pick-tracker');
+  const missOverlay = document.getElementById('miss-overlay');
+
   // App State Flags
   let isDrawInProgress = false;
   let autoStopTimer = null;
   let currentWinner = null;
-
-  // Initialize UI with saved data
-  updateStatsAndUI();
-  tombola.updateBallsWithParticipants(state.participants);
-  slot.setIdleDisplay();
 
   // Switch Sound Initial State
   if (window.soundEngine && window.soundEngine.isMuted) {
@@ -78,13 +74,41 @@ document.addEventListener('DOMContentLoaded', () => {
   /* -------------------------------------------------------------
      Sorteo Round Selection & Prize Name Editing
   ------------------------------------------------------------- */
-  sorteoPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      if (isDrawInProgress) return;
-      const round = parseInt(pill.dataset.round, 10);
-      selectRound(round);
-    });
+  // Tabs and podium cards depend on how many sorteos are configured
+  function buildRoundUI() {
+    roundPillsEl.innerHTML = state.rounds()
+      .map(r => `<button class="sorteo-pill" data-round="${r}">Sorteo ${r}</button>`)
+      .join('');
+    sorteoPills = Array.from(roundPillsEl.querySelectorAll('.sorteo-pill'));
+
+    podiumGrid.innerHTML = state.rounds().map(r => `
+      <div class="podium-card" id="podium-card-${r}" data-round="${r}">
+        <div class="podium-card-top">
+          <div class="podium-round-badge">${r}° Sorteo</div>
+          <span class="podium-status pending">PENDIENTE</span>
+        </div>
+        <div class="podium-prize"></div>
+        <div class="podium-ticket-box">
+          <div class="podium-ticket">Pendiente</div>
+        </div>
+        <div class="podium-name">En espera de sorteo</div>
+        <div class="podium-losers"></div>
+        <div class="podium-actions">
+          <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">Diploma</button>
+          <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">Repetir</button>
+        </div>
+      </div>`).join('');
+    podiumCards = {};
+    state.rounds().forEach(r => { podiumCards[r] = document.getElementById(`podium-card-${r}`); });
+  }
+
+  roundPillsEl.addEventListener('click', (e) => {
+    const pill = e.target.closest('.sorteo-pill');
+    if (!pill || isDrawInProgress) return;
+    selectRound(parseInt(pill.dataset.round, 10));
   });
+
+  buildRoundUI();
 
   function selectRound(round) {
     state.activeRound = round;
@@ -101,15 +125,60 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.winners[round]) {
       const w = state.winners[round];
       slot.lockWinner(w);
-      btnStartDraw.disabled = true;
-      btnStartDraw.innerHTML = `<span class="icon">🏆</span> YA TIENE GANADOR`;
     } else {
       slot.setIdleDisplay();
-      btnStartDraw.disabled = false;
-      btnStartDraw.innerHTML = `<span class="icon">🎲</span> ¡INICIAR SORTEO N° ${round}!`;
+    }
+
+    // Bring back the balls that belong in this round (e.g. last round's non-winners)
+    if (!isDrawInProgress && !tombola.hasWinnerBall() && drumNeedsRebuild()) {
+      refreshTombola();
     }
 
     updateStatsAndUI();
+  }
+
+  function updateStartButtonLabel() {
+    const round = state.activeRound;
+    if (state.winners[round]) {
+      btnStartDraw.disabled = true;
+      btnStartDraw.textContent = 'YA TIENE GANADOR';
+      return;
+    }
+    btnStartDraw.disabled = false;
+    const pick = state.getPickNumber(round);
+    btnStartDraw.textContent = pick >= state.PICKS_PER_ROUND
+      ? `¡EXTRACCIÓN FINAL DEL SORTEO N° ${round}!`
+      : `¡INICIAR EXTRACCIÓN ${pick} DE ${state.PICKS_PER_ROUND}!`;
+  }
+
+  // True when the balls in the drum do not match who should be inside for the active round
+  function drumNeedsRebuild() {
+    const pool = state.getDrawPool();
+    const inPool = new Set(pool.map(p => String(p.ticket)));
+    const tickets = tombola.getTickets();
+    if (tickets.some(t => !inPool.has(t))) return true;
+    return pool.length <= 60 && tickets.length !== pool.length;
+  }
+
+  function renderPickTracker() {
+    const round = state.activeRound;
+    const losers = state.losers[round] || [];
+    const winner = state.winners[round];
+    let html = '';
+    for (let i = 1; i <= state.PICKS_PER_ROUND; i++) {
+      let cls = '';
+      let ticket = '---';
+      let label = 'Pendiente';
+      if (i <= losers.length) {
+        cls = 'miss'; ticket = losers[i - 1].ticket; label = 'No gana';
+      } else if (i === state.PICKS_PER_ROUND && winner) {
+        cls = 'win'; ticket = winner.ticket; label = 'Ganador';
+      } else if (i === losers.length + 1 && !winner) {
+        cls = 'current'; label = i === state.PICKS_PER_ROUND ? 'Extracción final' : 'Siguiente';
+      }
+      html += `<div class="pick-chip ${cls}"><span class="pc-label">Extracción ${i}</span><span class="pc-ticket">${escapeHtml(ticket)}</span><span class="pc-state">${label}</span></div>`;
+    }
+    pickTracker.innerHTML = html;
   }
 
   // Update Prize name on input change
@@ -143,13 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Validation: Any eligible participant left?
-    const eligible = state.getEligibleParticipants();
-    if (eligible.length === 0) {
-      alert('No hay participantes habilitados disponibles. Todos los participantes ya han ganado en sorteos anteriores.');
-      return;
-    }
-
     // Validation: Already won this round?
     if (state.winners[state.activeRound]) {
       const confirmOverwrite = confirm(
@@ -157,11 +219,46 @@ document.addEventListener('DOMContentLoaded', () => {
       );
       if (!confirmOverwrite) return;
       state.resetRoundWinner(state.activeRound);
+      updateStatsAndUI();
+    }
+
+    // Validation: Any participant left in the drum?
+    if (state.getDrawPool().length === 0) {
+      alert('No hay participantes habilitados disponibles en la tómbola.');
+      return;
     }
 
     // Set draw state
     isDrawInProgress = true;
     btnStartDraw.classList.add('hidden');
+
+    const proceed = () => {
+      if (drumNeedsRebuild()) {
+        // Balls rejoining from the previous round drop back into the drum
+        slot.setIdleDisplay();
+        tombola.updateBallsWithParticipants(state.getDrawPool(), true);
+        setTimeout(beginSpin, 1700);
+      } else {
+        beginSpin();
+      }
+    };
+
+    // The previous winner's ball leaves the drum before the new draw begins
+    if (tombola.hasWinnerBall()) {
+      slot.setIdleDisplay();
+      tombola.retireWinnerBall(proceed);
+    } else {
+      proceed();
+    }
+  }
+
+  function isFinalPick(pool) {
+    return state.getPickNumber() >= state.PICKS_PER_ROUND || pool.length === 1;
+  }
+
+  function beginSpin() {
+    const pool = state.getDrawPool();
+    btnStopDraw.textContent = isFinalPick(pool) ? '¡DETENER Y PROCLAMAR GANADOR!' : '¡DETENER EXTRACCIÓN!';
     btnStopDraw.classList.remove('hidden');
 
     // Start Audio
@@ -171,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Start 3D Tombola and Rapid Slot
     tombola.startMixing();
-    slot.startSpin(eligible);
+    slot.startSpin(pool);
 
     // Auto-stop countdown (7 seconds of epic suspense)
     autoStopTimer = setTimeout(() => {
@@ -183,26 +280,34 @@ document.addEventListener('DOMContentLoaded', () => {
     clearTimeout(autoStopTimer);
     btnStopDraw.disabled = true;
 
-    const eligible = state.getEligibleParticipants();
-    if (eligible.length === 0) {
+    const pool = state.getDrawPool();
+    if (pool.length === 0) {
       isDrawInProgress = false;
       return;
     }
 
-    // Pick Winner completely randomly from eligible pool
-    const winnerIndex = Math.floor(Math.random() * eligible.length);
-    currentWinner = eligible[winnerIndex];
+    const round = state.activeRound;
+    const pickNumber = state.getPickNumber(round);
+    const finalPick = isFinalPick(pool);
+
+    // Pick the extracted ball completely at random from the balls inside the drum
+    const picked = pool[Math.floor(Math.random() * pool.length)];
 
     // Decelerate Tombola and extract ball
-    tombola.stopMixing(currentWinner.ticket);
+    tombola.stopMixing(picked.ticket, finalPick);
 
     // Decelerate slot flipper through tension steps
-    slot.decelerateAndLock(eligible, currentWinner, (winner) => {
-      onWinnerProclaimed(winner);
-    });
+    slot.decelerateAndLock(pool, picked, (p) => {
+      if (finalPick) {
+        onWinnerProclaimed(p);
+      } else {
+        onMissProclaimed(p, round, pickNumber);
+      }
+    }, finalPick);
   }
 
   function onWinnerProclaimed(winner) {
+    currentWinner = winner;
     isDrawInProgress = false;
     btnStopDraw.disabled = false;
     btnStopDraw.classList.add('hidden');
@@ -222,6 +327,53 @@ document.addEventListener('DOMContentLoaded', () => {
       openCelebrationModal(winner, state.activeRound);
     }, 800);
   }
+
+  // Extractions 1 and 2 of a round: the ball is out for this round, but returns in the next one
+  function onMissProclaimed(participant, round, pickNumber) {
+    btnStopDraw.disabled = false;
+    btnStopDraw.classList.add('hidden');
+
+    state.addLoser(round, participant);
+    updateStatsAndUI();
+
+    if (window.soundEngine) {
+      window.soundEngine.playMissSound();
+    }
+    showMissOverlay(participant, round, pickNumber);
+
+    // The ball leaves the drum while the message is on screen
+    setTimeout(() => {
+      tombola.retireWinnerBall(() => {
+        isDrawInProgress = false;
+        btnStartDraw.classList.remove('hidden');
+        updateStartButtonLabel();
+        renderPool();
+      });
+    }, 1800);
+  }
+
+  let missTimer = null;
+  function showMissOverlay(participant, round, pickNumber) {
+    document.getElementById('miss-ticket').textContent = participant.ticket;
+    document.getElementById('miss-title').textContent = pickNumber < state.PICKS_PER_ROUND - 1 ? '¡MALA SUERTE!' : '¡CASI!';
+    document.getElementById('miss-sub').textContent = pickNumber < state.PICKS_PER_ROUND - 1 ? 'Sigue intentando' : 'Suerte para la próxima';
+    document.getElementById('miss-name').textContent = participant.name;
+    document.getElementById('miss-note').textContent = round < state.TOTAL_ROUNDS
+      ? 'Su bola sale de la tómbola en este sorteo y vuelve a entrar en el siguiente.'
+      : 'Su bola queda fuera de la tómbola en este sorteo.';
+
+    missOverlay.classList.remove('leaving');
+    missOverlay.classList.add('active');
+    clearTimeout(missTimer);
+    missTimer = setTimeout(hideMissOverlay, 3400);
+  }
+
+  function hideMissOverlay() {
+    clearTimeout(missTimer);
+    missOverlay.classList.add('leaving');
+    setTimeout(() => missOverlay.classList.remove('active', 'leaving'), 400);
+  }
+  missOverlay.addEventListener('click', hideMissOverlay);
 
   /* -------------------------------------------------------------
      Celebration Modal & Winner Diploma
@@ -245,9 +397,12 @@ document.addEventListener('DOMContentLoaded', () => {
     celebrationModal.classList.remove('active');
     celebration.stop();
 
+    // Take the winning ball out of the drum so the next draw starts without it
+    retireWinnerAnimation();
+
     // Automatically advance to the next incomplete round
-    let nextRound = state.activeRound < 3 ? state.activeRound + 1 : 1;
-    for (let r = 1; r <= 3; r++) {
+    let nextRound = state.activeRound < state.TOTAL_ROUNDS ? state.activeRound + 1 : 1;
+    for (const r of state.rounds()) {
       if (!state.winners[r]) {
         nextRound = r;
         break;
@@ -255,6 +410,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     selectRound(nextRound);
   });
+
+  function retireWinnerAnimation() {
+    if (!tombola.hasWinnerBall() || isDrawInProgress) return;
+    isDrawInProgress = true;
+    tombola.retireWinnerBall(() => {
+      isDrawInProgress = false;
+    });
+  }
+
+  // Keeps the drum in sync with the participants still in play
+  function refreshTombola() {
+    tombola.updateBallsWithParticipants(state.getDrawPool());
+  }
 
   btnDownloadCert.addEventListener('click', () => {
     if (currentWinner) {
@@ -270,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
      Podium & Winner Cards Render
   ------------------------------------------------------------- */
   function updatePodiumCards() {
-    [1, 2, 3].forEach(round => {
+    state.rounds().forEach(round => {
       const card = podiumCards[round];
       const winner = state.winners[round];
       const prize = state.prizes[round] || `${round}° Premio`;
@@ -281,6 +449,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const statusBadge = card.querySelector('.podium-status');
       const certBtn = card.querySelector('.btn-podium-cert');
       const resetBtn = card.querySelector('.btn-podium-reset');
+      const losersEl = card.querySelector('.podium-losers');
+      const roundLosers = state.losers[round] || [];
+      if (losersEl) {
+        losersEl.textContent = roundLosers.length
+          ? `Sin premio: ${roundLosers.map(l => l.ticket).join(', ')}`
+          : '';
+      }
 
       prizeEl.textContent = prize;
 
@@ -302,6 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
           e.stopPropagation();
           if (confirm(`¿Anular el ganador del Sorteo N° ${round} (${winner.name}) para volver a sortearlo?`)) {
             state.resetRoundWinner(round);
+            refreshTombola();
             selectRound(round);
             updateStatsAndUI();
           }
@@ -334,10 +510,84 @@ document.addEventListener('DOMContentLoaded', () => {
 
     statTotal.textContent = total.toLocaleString();
     statEligible.textContent = eligible.toLocaleString();
-    statWinners.textContent = `${winnersCount} / 3`;
+    statWinners.textContent = `${winnersCount} / ${state.TOTAL_ROUNDS}`;
 
     updatePodiumCards();
+    renderPool();
+    renderPickTracker();
+    updateStartButtonLabel();
   }
+
+  /* -------------------------------------------------------------
+     Pool drawer: participants still inside the drum
+  ------------------------------------------------------------- */
+  const poolDrawer = document.getElementById('pool-drawer');
+  const poolBackdrop = document.getElementById('pool-backdrop');
+  const poolLists = document.getElementById('pool-lists');
+  const poolSearch = document.getElementById('pool-search');
+  const poolCountIn = document.getElementById('pool-count-in');
+  const poolCountOut = document.getElementById('pool-count-out');
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function renderPool() {
+    const q = poolSearch.value.trim().toLowerCase();
+    const match = p => !q || String(p.ticket).toLowerCase().includes(q) || String(p.name).toLowerCase().includes(q);
+    const eligible = state.getDrawPool();
+    const missed = (state.losers[state.activeRound] || []).filter(match);
+    const winnerEntries = state.rounds().filter(r => state.winners[r]).map(r => ({ round: r, w: state.winners[r] }));
+
+    poolCountIn.textContent = eligible.length.toLocaleString();
+    poolCountOut.textContent = winnerEntries.length;
+
+    const inRows = eligible.filter(match).map(p =>
+      `<div class="pool-row"><span class="t">${escapeHtml(p.ticket)}</span><span class="n">${escapeHtml(p.name)}</span></div>`
+    ).join('');
+    const missRows = missed.map(l =>
+      `<div class="pool-row miss"><span class="t">${escapeHtml(l.ticket)}</span><span class="n">${escapeHtml(l.name)}</span><span class="tag miss">Sin premio</span></div>`
+    ).join('');
+    const outRows = winnerEntries.filter(e => match(e.w)).map(e =>
+      `<div class="pool-row out"><span class="t">${escapeHtml(e.w.ticket)}</span><span class="n">${escapeHtml(e.w.name)}</span><span class="tag">Sorteo ${e.round}</span></div>`
+    ).join('');
+
+    poolLists.innerHTML =
+      `<div class="pool-section-title">Dentro de la tómbola</div>` +
+      (inRows || `<div class="pool-empty">Sin participantes.</div>`) +
+      `<div class="pool-section-title">Extraídos en el Sorteo ${state.activeRound} (vuelven al siguiente)</div>` +
+      (missRows || `<div class="pool-empty">Aún no hay bolas extraídas.</div>`) +
+      `<div class="pool-section-title">Fuera de la tómbola (ganadores)</div>` +
+      (outRows || `<div class="pool-empty">Aún no hay ganadores.</div>`);
+  }
+
+  function setPoolOpen(open) {
+    poolDrawer.classList.toggle('active', open);
+    poolBackdrop.classList.toggle('active', open);
+    poolDrawer.setAttribute('aria-hidden', String(!open));
+    if (open) renderPool();
+  }
+
+  document.getElementById('btn-open-pool').addEventListener('click', () => setPoolOpen(true));
+  document.getElementById('btn-close-pool').addEventListener('click', () => setPoolOpen(false));
+  poolBackdrop.addEventListener('click', () => setPoolOpen(false));
+  poolSearch.addEventListener('input', renderPool);
+
+  /* -------------------------------------------------------------
+     Closable data-loading reminder
+  ------------------------------------------------------------- */
+  const reminderAside = document.getElementById('reminder-aside');
+  const btnShowReminder = document.getElementById('btn-show-reminder');
+
+  function setReminderVisible(visible) {
+    reminderAside.classList.toggle('closed', !visible);
+    btnShowReminder.classList.toggle('hidden', visible);
+    try { localStorage.setItem('inei_reminder_closed', visible ? '0' : '1'); } catch (e) {}
+  }
+
+  document.getElementById('btn-close-reminder').addEventListener('click', () => setReminderVisible(false));
+  btnShowReminder.addEventListener('click', () => setReminderVisible(true));
+  try { if (localStorage.getItem('inei_reminder_closed') === '1') setReminderVisible(false); } catch (e) {}
 
   /* -------------------------------------------------------------
      Excel Copy-Paste & File Modal Logic
@@ -371,7 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
     state.participants = result.data;
     state.saveToStorage();
 
-    tombola.updateBallsWithParticipants(state.participants);
+    refreshTombola();
     updateStatsAndUI();
     renderPreviewTable();
 
@@ -388,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Load Demo Data (60 INEI workers)
   btnLoadDemo.addEventListener('click', () => {
     const demo = state.loadDemoData();
-    tombola.updateBallsWithParticipants(demo);
+    refreshTombola();
     updateStatsAndUI();
     renderPreviewTable();
     showPasteFeedback(`¡Datos de prueba INEI cargados! ${demo.length} participantes listos para sortear.`, 'success');
@@ -398,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnClearData.addEventListener('click', () => {
     if (confirm('¿Estás seguro de vaciar toda la lista de participantes y reiniciar los sorteos?')) {
       state.clearAll();
-      tombola.updateBallsWithParticipants([]);
+      refreshTombola();
       updateStatsAndUI();
       renderPreviewTable();
       pasteTextarea.value = '';
@@ -459,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isWinner = wonTickets.includes(p.ticket);
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="font-weight: bold; color: ${isWinner ? '#FFD700' : '#00D2FF'};">${p.ticket}</td>
+        <td style="font-weight: bold; color: ${isWinner ? '#CFEAFB' : '#2E9BE6'};">${p.ticket}</td>
         <td>${p.name}</td>
         <td><span class="preview-badge ${isWinner ? 'won' : 'eligible'}">${isWinner ? 'Ganador (Excluido)' : 'Habilitado'}</span></td>
       `;
@@ -501,12 +751,74 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnResetAll.addEventListener('click', () => {
-    if (confirm('¿Reiniciar los 3 sorteos y borrar todos los ganadores actuales? (Los participantes se mantendrán)')) {
+    if (confirm('¿Reiniciar todos los sorteos y borrar todos los ganadores actuales? (Los participantes se mantendrán)')) {
       state.resetAllWinners();
+      refreshTombola();
       selectRound(1);
       updateStatsAndUI();
       slot.setIdleDisplay();
-      alert('Se han reiniciado los 3 sorteos. Todos los participantes vuelven a estar habilitados.');
+      alert('Se han reiniciado todos los sorteos. Todos los participantes vuelven a estar habilitados.');
     }
   });
+
+  /* -------------------------------------------------------------
+     Draw configuration: number of sorteos and winning extraction
+  ------------------------------------------------------------- */
+  const configModal = document.getElementById('config-modal');
+  const cfgTotalRounds = document.getElementById('cfg-total-rounds');
+  const cfgWinnerPick = document.getElementById('cfg-winner-pick');
+  const cfgPreview = document.getElementById('cfg-preview');
+  const cfgWarning = document.getElementById('cfg-warning');
+
+  function readCfgValue(input, max) {
+    return Math.max(1, Math.min(max, parseInt(input.value, 10) || 1));
+  }
+
+  function renderCfgPreview() {
+    const rounds = readCfgValue(cfgTotalRounds, state.MAX_ROUNDS);
+    const pick = readCfgValue(cfgWinnerPick, state.MAX_PICK);
+    const misses = pick - 1;
+    cfgPreview.textContent = misses === 0
+      ? `Se harán ${rounds} sorteo(s). En cada uno, la primera bola que sale es la ganadora.`
+      : `Se harán ${rounds} sorteo(s). En cada uno salen ${misses} bola(s) sin premio y la bola N° ${pick} es la ganadora. Las bolas sin premio vuelven a la tómbola en el sorteo siguiente.`;
+  }
+
+  function openConfigModal() {
+    if (isDrawInProgress) return;
+    cfgTotalRounds.value = state.config.totalRounds;
+    cfgWinnerPick.value = state.config.winnerPick;
+    cfgWarning.classList.toggle('hidden', !state.hasProgress());
+    renderCfgPreview();
+    configModal.classList.add('active');
+  }
+
+  function closeConfigModal() {
+    configModal.classList.remove('active');
+  }
+
+  document.getElementById('btn-open-config').addEventListener('click', openConfigModal);
+  document.getElementById('btn-close-config').addEventListener('click', closeConfigModal);
+  document.getElementById('btn-cancel-config').addEventListener('click', closeConfigModal);
+  cfgTotalRounds.addEventListener('input', renderCfgPreview);
+  cfgWinnerPick.addEventListener('input', renderCfgPreview);
+
+  document.getElementById('btn-save-config').addEventListener('click', () => {
+    const rounds = readCfgValue(cfgTotalRounds, state.MAX_ROUNDS);
+    const pick = readCfgValue(cfgWinnerPick, state.MAX_PICK);
+    const changed = rounds !== state.config.totalRounds || pick !== state.config.winnerPick;
+    if (changed) {
+      if (state.hasProgress() && !confirm('Cambiar la configuración reiniciará todos los sorteos y ganadores actuales. ¿Continuar?')) {
+        return;
+      }
+      state.setConfig(rounds, pick);
+      buildRoundUI();
+      refreshTombola();
+      selectRound(1);
+    }
+    closeConfigModal();
+  });
+
+  // Initialize UI with saved data (after all const declarations above)
+  refreshTombola();
+  selectRound(state.activeRound);
 });

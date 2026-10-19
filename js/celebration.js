@@ -15,11 +15,11 @@ class CelebrationEngine {
     this.animationId = null;
 
     this.colors = [
-      '#FFD700', // Gold
-      '#1363D0', // INEI Royal Blue
-      '#00D2FF', // Cyan
+      '#CFEAFB', // Gold
+      '#1E8BD6', // INEI Royal Blue
+      '#2E9BE6', // Cyan
       '#FFFFFF', // White
-      '#E30613', // Red Peru
+      '#5BB8F0', // Red Peru
       '#FFA726', // Orange
       '#4CAF50', // Emerald Green
     ];
@@ -246,38 +246,38 @@ class CelebrationEngine {
 
     // Background Gradient (Institutional Luxury Blue)
     const bg = ctx.createLinearGradient(0, 0, 1200, 800);
-    bg.addColorStop(0, '#041126');
-    bg.addColorStop(0.5, '#0A2B68');
-    bg.addColorStop(1, '#020C1C');
+    bg.addColorStop(0, '#101733');
+    bg.addColorStop(0.5, '#263266');
+    bg.addColorStop(1, '#0B1030');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 1200, 800);
 
     // Golden Outer Border
-    ctx.strokeStyle = '#FFD700';
+    ctx.strokeStyle = '#CFEAFB';
     ctx.lineWidth = 10;
     ctx.strokeRect(30, 30, 1140, 740);
 
     // Inner Delicate Border
-    ctx.strokeStyle = 'rgba(0, 210, 255, 0.6)';
+    ctx.strokeStyle = 'rgba(46, 155, 230, 0.6)';
     ctx.lineWidth = 2;
     ctx.strokeRect(45, 45, 1110, 710);
 
     // Header Title
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 26px "Segoe UI", Arial, sans-serif';
+    ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('INSTITUTO NACIONAL DE ESTADÍSTICA E INFORMÁTICA - INEI', 600, 110);
+    ctx.fillText('INSTITUTO NACIONAL DE ESTADÍSTICA E INFORMÁTICA - INEI', 660, 110);
 
-    ctx.fillStyle = '#00D2FF';
+    ctx.fillStyle = '#2E9BE6';
     ctx.font = '600 18px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('COMITÉ DE BIENESTAR Y ACTIVIDADES INSTITUCIONALES', 600, 145);
+    ctx.fillText('COMITÉ DE BIENESTAR Y ACTIVIDADES INSTITUCIONALES', 660, 145);
 
     // Decorative Gold Line
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = '#CFEAFB';
     ctx.fillRect(400, 170, 400, 4);
 
     // Main Certificate Heading
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = '#CFEAFB';
     ctx.font = 'bold 46px "Segoe UI", Georgia, serif';
     ctx.fillText('CERTIFICADO OFICIAL DE GANADOR', 600, 240);
 
@@ -287,24 +287,43 @@ class CelebrationEngine {
     ctx.fillText('ha resultado ganador(a) acreditado(a):', 600, 330);
 
     // Winner Name in Large Golden Box
-    ctx.fillStyle = 'rgba(19, 99, 208, 0.35)';
-    ctx.strokeStyle = '#FFD700';
+    ctx.fillStyle = 'rgba(30, 139, 214, 0.35)';
+    ctx.strokeStyle = '#CFEAFB';
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.roundRect(150, 370, 900, 100, 12);
     ctx.fill();
     ctx.stroke();
 
+    // Name (and area, if any) shrunk to fit inside the box
+    const nameParts = winner.name.split(' - ');
+    const mainName = nameParts[0].trim().toUpperCase();
+    const areaName = nameParts.slice(1).join(' - ').trim();
+    const fitText = (text, weight, startSize, minSize, maxWidth) => {
+      let size = startSize;
+      do {
+        ctx.font = `${weight} ${size}px "Segoe UI", Arial, sans-serif`;
+        size -= 1;
+      } while (ctx.measureText(text).width > maxWidth && size >= minSize);
+    };
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 38px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(winner.name.toUpperCase(), 600, 435);
+    if (areaName) {
+      fitText(mainName, 'bold', 38, 20, 840);
+      ctx.fillText(mainName, 600, 422);
+      ctx.fillStyle = '#BFE3FA';
+      fitText(areaName, '600', 22, 14, 840);
+      ctx.fillText(areaName, 600, 455);
+    } else {
+      fitText(mainName, 'bold', 38, 20, 840);
+      ctx.fillText(mainName, 600, 435);
+    }
 
     // Ticket & Prize Details
-    ctx.fillStyle = '#00D2FF';
+    ctx.fillStyle = '#2E9BE6';
     ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
     ctx.fillText(`N° DE TICKET GANADOR: [ ${winner.ticket} ]`, 600, 520);
 
-    ctx.fillStyle = '#FFD700';
+    ctx.fillStyle = '#CFEAFB';
     ctx.font = 'italic 22px "Segoe UI", Georgia, serif';
     ctx.fillText(`PREMIO: ${prizeName.toUpperCase()}`, 600, 560);
 
@@ -316,7 +335,7 @@ class CelebrationEngine {
     });
     ctx.fillStyle = '#A0B4D0';
     ctx.font = '16px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`Emitido en Lima, a los ${today}`, 600, 620);
+    ctx.fillText(`Emitido en Ica, a los ${today}`, 600, 620);
 
     // Signatures
     ctx.strokeStyle = '#A0B4D0';
@@ -333,11 +352,25 @@ class CelebrationEngine {
     ctx.fillText('Comisión Organizadora del Sorteo', 360, 725);
     ctx.fillText('Supervisión y Control Institucional', 840, 725);
 
-    // Trigger download
-    const link = document.createElement('a');
-    link.download = `Certificado_Ganador_${winner.ticket}_Sorteo_${roundNumber}.png`;
-    link.href = certCanvas.toDataURL('image/png');
-    link.click();
+    // Institutional logo (white badge, wordmark crop), then trigger download
+    const download = () => {
+      const link = document.createElement('a');
+      link.download = `Certificado_Ganador_${winner.ticket}_Sorteo_${roundNumber}.png`;
+      link.href = certCanvas.toDataURL('image/png');
+      link.click();
+    };
+    const logo = new Image();
+    logo.onload = () => {
+      const k = logo.naturalWidth / 600;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.roundRect(60, 55, 110, 110, 10);
+      ctx.fill();
+      ctx.drawImage(logo, 0, 0, logo.naturalWidth, logo.naturalHeight, 60, 55, 110, 110);
+      download();
+    };
+    logo.onerror = download;
+    logo.src = window.INEI_LOGO_DATA || 'assets/logo-inei.png';
   }
 }
 

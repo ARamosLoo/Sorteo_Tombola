@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gran Sorteo Institucional - INEI</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231363D0'/><text x='50' y='65' font-size='38' font-weight='bold' fill='white' text-anchor='middle'>INEI</text></svg>">
+  <link rel="icon" type="image/png" href="assets/logo-inei.png">
 </head>
 <body>
 
@@ -16,21 +16,8 @@
     <!-- Top Institutional Header -->
     <header class="app-header">
       <div class="brand-section">
-        <div class="inei-logo-badge">
-          <div class="logo-graphic" title="INEI - Perú">
-            <!-- Modern SVG INEI Emblem -->
-            <svg width="34" height="34" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="4" y="24" width="6" height="12" rx="2" fill="#FFFFFF"/>
-              <rect x="14" y="16" width="6" height="20" rx="2" fill="#FFFFFF"/>
-              <rect x="24" y="8" width="6" height="28" rx="2" fill="#FFD700"/>
-              <path d="M4 18L17 10L27 14L36 4" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="36" cy="4" r="3" fill="#E30613"/>
-            </svg>
-          </div>
-          <div>
-            <div class="inei-text-title">INEI</div>
-            <div class="inei-subtitle">Instituto Nacional de Estadística e Informática</div>
-          </div>
+        <div class="inei-logo-badge" title="INEI - Instituto Nacional de Estadística e Informática">
+          <div class="logo-crop"><img src="assets/logo-inei.png" alt="INEI - Instituto Nacional de Estadística e Informática"></div>
         </div>
       </div>
 
@@ -44,7 +31,7 @@
           <span>Habilitados:</span>
           <span class="val" id="stat-eligible-count">0</span>
         </div>
-        <div class="stat-chip" title="Ganadores proclamados en los 3 sorteos">
+        <div class="stat-chip" title="Ganadores proclamados en todos los sorteos">
           <span>Ganadores:</span>
           <span class="val" id="stat-winners-count">0 / 3</span>
         </div>
@@ -53,36 +40,32 @@
       <!-- Action Buttons -->
       <div class="header-actions">
         <button id="btn-open-data-modal" class="btn-header primary" title="Cargar participantes desde Excel">
-          <span>📋</span> Cargar Participantes
+          Cargar Participantes
+        </button>
+        <button id="btn-open-config" class="btn-header" title="Definir cuántos sorteos se hacen y en qué extracción está el ganador">
+          Configurar sorteo
+        </button>
+        <button id="btn-open-pool" class="btn-header" title="Ver los participantes que siguen dentro de la tómbola">
+          Participantes en juego
         </button>
         <button id="btn-sound-toggle" class="btn-header" title="Activar/Silenciar sonido de efectos">
-          <span>🔊</span> <span class="label">Sonido: ON</span>
+          <span class="label">Sonido: ON</span>
         </button>
         <button id="btn-fullscreen" class="btn-header" title="Modo Pantalla Completa (F11)">
-          <span>⛶</span> Pantalla Completa
+          Pantalla Completa
         </button>
         <button id="btn-export-results" class="btn-header" title="Exportar reporte de ganadores y tickets a Excel/CSV">
-          <span>📥</span> Exportar
+          Exportar
         </button>
-        <button id="btn-reset-all" class="btn-header" title="Reiniciar los 3 sorteos">
-          <span>🔄</span> Reiniciar
+        <button id="btn-reset-all" class="btn-header" title="Reiniciar todos los sorteos">
+          Reiniciar
         </button>
       </div>
     </header>
 
     <!-- Sorteo Round Navigation & Prize Config -->
     <nav class="round-nav-bar">
-      <div class="round-pills-container">
-        <button class="sorteo-pill active" data-round="1">
-          <span>🎯</span> Sorteo 1
-        </button>
-        <button class="sorteo-pill" data-round="2">
-          <span>🎯</span> Sorteo 2
-        </button>
-        <button class="sorteo-pill" data-round="3">
-          <span>🎯</span> Sorteo 3
-        </button>
-      </div>
+      <div class="round-pills-container" id="round-pills"></div>
 
       <div class="round-prize-edit">
         <label for="active-prize-input">Premio en disputa:</label>
@@ -96,7 +79,7 @@
       <section class="tombola-panel">
         <canvas id="tombola-canvas"></canvas>
         <div class="tombola-caption">
-          <span>⚙️</span> Tómbola Virtual de Esferas Numeradas
+          Tómbola Virtual de Esferas Numeradas
         </div>
       </section>
 
@@ -116,13 +99,16 @@
             <div class="slot-participant-name" id="slot-name">Presiona "INICIAR SORTEO" para comenzar</div>
           </div>
 
+          <!-- Extraction tracker: 2 non-winning balls, then the winner -->
+          <div class="pick-tracker" id="pick-tracker"></div>
+
           <!-- Action Buttons -->
           <div class="stage-actions">
             <button id="btn-start-draw" class="btn-draw-main btn-start">
-              <span class="icon">🎲</span> ¡INICIAR SORTEO N° 1!
+              ¡INICIAR SORTEO N° 1!
             </button>
             <button id="btn-stop-draw" class="btn-draw-main btn-stop hidden">
-              <span class="icon">🛑</span> ¡DETENER Y PROCLAMAR GANADOR!
+              ¡DETENER Y PROCLAMAR GANADOR!
             </button>
           </div>
         </div>
@@ -133,93 +119,29 @@
     <footer class="podium-section">
       <div class="podium-header">
         <div class="podium-title">
-          <span>🏆</span> PODIO DE GANADORES INSTITUCIONALES
+          PODIO DE GANADORES INSTITUCIONALES
         </div>
         <div class="rule-note">
-          ✓ Regla: Cada sorteo tiene un único ganador exclusivo que no participa en los demás sorteos.
+          Regla: Cada sorteo tiene un único ganador exclusivo que no participa en los demás sorteos.
         </div>
       </div>
 
-      <div class="podium-grid">
-        <!-- Sorteo 1 Card -->
-        <div class="podium-card" id="podium-card-1" data-round="1">
-          <div class="podium-card-top">
-            <div class="podium-round-badge"><span>🥇</span> 1° Sorteo</div>
-            <span class="podium-status active">EN CURSO</span>
-          </div>
-          <div class="podium-prize">1° Premio Institucional</div>
-          <div class="podium-ticket-box">
-            <div class="podium-ticket">Pendiente</div>
-          </div>
-          <div class="podium-name">En espera de sorteo</div>
-          <div class="podium-actions">
-            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
-              <span>📜</span> Diploma
-            </button>
-            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
-              <span>✕</span> Repetir
-            </button>
-          </div>
-        </div>
-
-        <!-- Sorteo 2 Card -->
-        <div class="podium-card" id="podium-card-2" data-round="2">
-          <div class="podium-card-top">
-            <div class="podium-round-badge"><span>🥈</span> 2° Sorteo</div>
-            <span class="podium-status pending">PENDIENTE</span>
-          </div>
-          <div class="podium-prize">2° Premio Institucional</div>
-          <div class="podium-ticket-box">
-            <div class="podium-ticket">Pendiente</div>
-          </div>
-          <div class="podium-name">En espera de sorteo</div>
-          <div class="podium-actions">
-            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
-              <span>📜</span> Diploma
-            </button>
-            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
-              <span>✕</span> Repetir
-            </button>
-          </div>
-        </div>
-
-        <!-- Sorteo 3 Card -->
-        <div class="podium-card" id="podium-card-3" data-round="3">
-          <div class="podium-card-top">
-            <div class="podium-round-badge"><span>🥉</span> 3° Sorteo</div>
-            <span class="podium-status pending">PENDIENTE</span>
-          </div>
-          <div class="podium-prize">3° Premio Institucional</div>
-          <div class="podium-ticket-box">
-            <div class="podium-ticket">Pendiente</div>
-          </div>
-          <div class="podium-name">En espera de sorteo</div>
-          <div class="podium-actions">
-            <button class="btn-card-action btn-podium-cert hidden" title="Descargar Diploma Oficial">
-              <span>📜</span> Diploma
-            </button>
-            <button class="btn-card-action danger btn-podium-reset hidden" title="Anular ganador y repetir">
-              <span>✕</span> Repetir
-            </button>
-          </div>
-        </div>
-      </div>
+      <div class="podium-grid" id="podium-grid"></div>
     </footer>
   </div>
 
   <!-- Excel Import Modal -->
   <div class="modal-overlay" id="data-modal">
-    <div class="modal-box">
+    <div class="modal-box wide">
       <div class="modal-header">
-        <h3 class="modal-title"><span>📋</span> Carga de Participantes desde Excel</h3>
+        <h3 class="modal-title">Carga de Participantes desde Excel</h3>
         <button class="btn-modal-close" id="btn-close-data-modal">&times;</button>
       </div>
 
+      <div class="modal-layout">
       <div class="modal-body">
-        <div class="instructions-box">
-          <strong>¿Cómo cargar los datos?</strong><br>
-          Copia las 2 columnas desde tu Excel (<strong>Columna 1: Número de Ticket</strong> y <strong>Columna 2: Nombre de la Persona</strong>) y pégalas directamente en el cuadro abajo con <strong>Ctrl + V</strong>.
-          El sistema detecta y omite automáticamente encabezados como "Ticket" o "Nombre", y elimina tickets duplicados.
+        <div class="reminder-toggle-row">
+          <button id="btn-show-reminder" class="btn-header hidden" type="button">Ver recordatorio de carga</button>
         </div>
 
         <div class="paste-container">
@@ -234,18 +156,18 @@ T-1003&#9;Jorge Sánchez Vega"></textarea>
         <div class="modal-actions-bar">
           <div style="display:flex; gap:10px; align-items:center;">
             <button id="btn-process-paste" class="btn-header primary">
-              <span>💾</span> Procesar y Guardar
+              Procesar y Guardar
             </button>
             <button id="btn-load-demo" class="btn-header" title="Cargar 60 colaboradores INEI de prueba">
-              <span>⚡</span> Cargar Demostración INEI
+              Cargar Demostración INEI
             </button>
             <button id="btn-upload-excel" class="btn-header" title="Importar archivo .xlsx o .csv">
-              <span>📁</span> Subir Archivo Excel
+              Subir Archivo Excel
             </button>
             <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" class="hidden">
           </div>
           <button id="btn-clear-data" class="btn-header" style="color:#FF8A80; border-color: rgba(227,6,19,0.4);">
-            <span>🗑️</span> Borrar Todo
+            Borrar Todo
           </button>
         </div>
 
@@ -275,13 +197,79 @@ T-1003&#9;Jorge Sánchez Vega"></textarea>
           </div>
         </div>
       </div>
+
+      <aside class="reminder-aside" id="reminder-aside">
+        <div class="reminder-head">
+          <span class="reminder-title">Recordatorio</span>
+          <button id="btn-close-reminder" class="btn-modal-close" type="button" title="Cerrar recordatorio">&times;</button>
+        </div>
+        <p class="reminder-lead">¿Cómo cargar los datos?</p>
+        <ol class="reminder-steps">
+          <li>Copia las 2 columnas desde tu Excel: <strong>Columna 1: Número de Ticket</strong> y <strong>Columna 2: Nombre de la Persona</strong>.</li>
+          <li>Pégalas en el cuadro con <strong>Ctrl + V</strong>.</li>
+          <li>Pulsa <strong>Procesar y Guardar</strong>.</li>
+        </ol>
+        <p class="reminder-note">El sistema omite encabezados como "Ticket" o "Nombre" y elimina tickets duplicados.</p>
+      </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- Draw configuration modal -->
+  <div class="modal-overlay" id="config-modal">
+    <div class="modal-box config-box">
+      <div class="modal-header">
+        <h3 class="modal-title">Configurar sorteo</h3>
+        <button class="btn-modal-close" id="btn-close-config" type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="cfg-field">
+          <span class="cfg-label">Cantidad de sorteos</span>
+          <input type="number" id="cfg-total-rounds" class="cfg-input" min="1" max="10" value="3">
+        </label>
+        <label class="cfg-field">
+          <span class="cfg-label">El ganador sale en la extracción N°</span>
+          <input type="number" id="cfg-winner-pick" class="cfg-input" min="1" max="10" value="3">
+        </label>
+        <div class="cfg-preview" id="cfg-preview"></div>
+        <div class="cfg-warning hidden" id="cfg-warning">Hay sorteos en curso o con ganador. Al guardar se reiniciarán todos los sorteos (los participantes se mantienen).</div>
+        <div class="modal-actions-bar">
+          <button id="btn-save-config" class="btn-header primary" type="button">Guardar configuración</button>
+          <button id="btn-cancel-config" class="btn-header" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Participants Pool Drawer -->
+  <div class="pool-backdrop" id="pool-backdrop"></div>
+  <aside class="pool-drawer" id="pool-drawer" aria-hidden="true">
+    <div class="pool-head">
+      <h3 class="pool-title">Participantes en la tómbola</h3>
+      <button id="btn-close-pool" class="btn-modal-close" type="button" title="Cerrar">&times;</button>
+    </div>
+    <div class="pool-summary">
+      <div class="pool-sum-item"><span class="pool-sum-val" id="pool-count-in">0</span><span class="pool-sum-lbl">Dentro</span></div>
+      <div class="pool-sum-item out"><span class="pool-sum-val" id="pool-count-out">0</span><span class="pool-sum-lbl">Fuera (ganadores)</span></div>
+    </div>
+    <input type="text" id="pool-search" class="pool-search" placeholder="Buscar por ticket o nombre...">
+    <div class="pool-lists" id="pool-lists"></div>
+  </aside>
+
+  <!-- Miss overlay: ball extracted but not the winner -->
+  <div class="miss-overlay" id="miss-overlay">
+    <div class="miss-card">
+      <div class="miss-ball"><span id="miss-ticket">T-0000</span></div>
+      <div class="miss-title" id="miss-title">Â¡MALA SUERTE!</div>
+      <div class="miss-sub" id="miss-sub">Sigue intentando</div>
+      <div class="miss-name" id="miss-name"></div>
+      <div class="miss-note" id="miss-note"></div>
     </div>
   </div>
 
   <!-- Grand Celebration Modal (Winner Proclamation) -->
   <div class="modal-overlay" id="celebration-modal">
     <div class="celebration-modal-box">
-      <div class="celeb-trophy-icon">🏆</div>
       <div class="celeb-badge" id="celeb-round-badge">¡GANADOR DEL 1° SORTEO INSTITUCIONAL!</div>
 
       <div class="celeb-ticket-card">
@@ -294,13 +282,13 @@ T-1003&#9;Jorge Sánchez Vega"></textarea>
 
       <div class="celeb-buttons">
         <button id="btn-download-cert" class="btn-header primary" style="padding:12px 22px; font-size:1rem;">
-          <span>📜</span> Descargar Diploma Oficial (PNG)
+          Descargar Diploma Oficial (PNG)
         </button>
-        <button id="btn-next-draw" class="btn-header" style="background:#FFD700; color:#041126; font-weight:800; padding:12px 22px; font-size:1rem;">
-          <span>➡️</span> Siguiente Sorteo
+        <button id="btn-next-draw" class="btn-header" style="background:#CFEAFB; color:#101733; font-weight:800; padding:12px 22px; font-size:1rem;">
+          Siguiente Sorteo
         </button>
         <button id="btn-close-celeb" class="btn-header" style="padding:12px 18px;">
-          <span>✕</span> Cerrar
+          Cerrar
         </button>
       </div>
     </div>
@@ -308,6 +296,7 @@ T-1003&#9;Jorge Sánchez Vega"></textarea>
 
   <!-- Scripts -->
   <script src="vendor/xlsx.full.min.js"></script>
+  <script src="js/logo-data.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/tombola.js"></script>
   <script src="js/slot-display.js"></script>
